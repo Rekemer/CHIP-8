@@ -7,8 +7,8 @@
 #include <algorithm>
 #define GLUT_STATIC_LIB
 #include "glut.h"
-using Byte = unsigned char;
-using Word = unsigned short;
+using Byte = uint8_t;
+using Word = uint16_t;
 Byte delayTimer = 0;
 Byte soundTimer = 0;
 const int SCREEN_W = 64;
@@ -66,11 +66,12 @@ Byte Random()
 }
 void ExecuteOpCode(Word opCode)
 {
+	
 	switch (opCode & 0xF000)
 	{
 
 	case 0x0000:
-		switch (opCode & 0x0FFF)
+		switch (opCode & 0x00FF)
 		{
 		case 0x00E0: // clears the screen
 		{
@@ -94,7 +95,7 @@ void ExecuteOpCode(Word opCode)
 		}
 		break;
 	case 0x1000: 
-		m_ProgramCounter = opCode & 0x0FFF; // go to address 0x1NNN
+		m_ProgramCounter = opCode & 0x0FFF; // go to address NNN
 		break;
 	case 0x2000: // call subroutine at address 0x2NNN
 		m_Stack[m_StackPtr] = m_ProgramCounter;
@@ -103,10 +104,10 @@ void ExecuteOpCode(Word opCode)
 		break;
 	case 0x3000: // 0x3XNN skip next instruction if VX == NN
 	{
-		Word v = (opCode >> 8) & 0x000F;
+		Word x = (opCode >> 8) & 0x000F;
 		Word nn = opCode & 0x00FF;
 
-		bool check = m_VRegisters[v] == nn;
+		bool check = m_VRegisters[x] == nn;
 		
 		if (check)
 		{
@@ -116,8 +117,8 @@ void ExecuteOpCode(Word opCode)
 		{
 			m_ProgramCounter += 2;
 		}
-	}
 		break;
+	}
 	case 0x4000: // 0x4XNN skip next instruction if if VX != NN
 	{
 		Word v = (opCode >> 8) & 0x000F;
@@ -132,8 +133,8 @@ void ExecuteOpCode(Word opCode)
 		{
 			m_ProgramCounter += 2;
 		}
-	}
 		break;
+	}
 	case 0x5000: // 0x5XY0 Skips the next instruction if VX equals VY
 	{
 		Word x = (opCode >> 8) & 0x000F;
@@ -147,24 +148,24 @@ void ExecuteOpCode(Word opCode)
 		{
 			m_ProgramCounter += 2;
 		}
-	}
 		break;
+	}
 	case 0x6000: // 0x6XNN Sets VX to NN
 	{
 		Word x = (opCode >> 8) & 0x000F;
 		Word nn = opCode  & 0x00FF;
 		m_VRegisters[x] = nn; 
 		m_ProgramCounter += 2;
-	}
 	break;
+	}
 	case 0x7000:// 0x7XNN Adds NN to VX
 	{
 		Word x = (opCode >> 8) & 0x000F;
 		Word nn = opCode & 0x00FF;
 		m_VRegisters[x] += nn; 
 		m_ProgramCounter += 2;
-	}
 		break;
+	}
 	case 0x8000: 
 		switch (opCode & 0x000F)
 		{
@@ -334,18 +335,23 @@ void ExecuteOpCode(Word opCode)
 		Word vx = (opCode >> 8) & 0x000F;
 		Word vy = (opCode >> 4) & 0x000F;
 		Word height = (opCode ) & 0x000F;
+
 		const Word width = 8;
 		m_VRegisters[0xF] = 0;
+		Byte xPos = m_VRegisters[vx] ;
+		Byte  yPos = m_VRegisters[vy] ;
 		for (int y = 0; y < height; y++)
 		{
-			Word pixel = m_Memory[m_AddressI + y];
+			Word binaryPixelRow = m_Memory[m_AddressI + y];
 			for (int x = 0; x < width; x++)
 			{
-				if ((pixel & (0x80 >> x)) != 0)
+				// test if we draw
+				if ((binaryPixelRow & (0x80 >> x)) != 0)
 				{
-				  if (m_ScreenData[(vx +x+ ((vy + y) * 64))] == 1)
+				  auto index = (xPos + x + ((yPos + y) * 64));
+				  if (m_ScreenData[index] == 1)
 					  m_VRegisters[0xF] = 1;
-				  m_ScreenData[(vx + x + ((vy + y) * 64))] ^= 1;
+				  m_ScreenData[index] ^=  1;
 				}
 			}
 		}
@@ -578,23 +584,42 @@ void updateTexture()
 void emulate()
 {
 	auto code = GetOpCode(m_Memory[m_ProgramCounter], m_Memory[m_ProgramCounter+1]);
+	printf("opCode: 0x%X\n", code);
+	if (0x13DC == code)
+	{
+		printf("opCode: 0x%X\n", code);
+	}
 	ExecuteOpCode(code);
+
+	if (delayTimer > 0)
+	{
+		printf("DECREMENT!\n");
+		--delayTimer;
+	}
+
+	if (soundTimer> 0)
+	{
+		if (soundTimer == 1)
+			printf("BEEP!\n");
+		--soundTimer;
+	}
+
 }
 
 void display()
 {
 	emulate();
-	debug_render();
+	//debug_render();
 	if (m_UpdateScreen)
 	{
 		// Clear framebuffer
 		glClear(GL_COLOR_BUFFER_BIT);
-
+	
 		updateTexture();
-
+	
 		// Swap buffers!
 		glutSwapBuffers();
-
+	
 		// Processed frame
 		m_UpdateScreen = false;
 	}
@@ -659,9 +684,10 @@ int main(int argc, char** argv)
 	m_ScreenData.fill(0);
 	m_Memory.fill(0);
 	m_Keys.fill(0);
+	m_Stack.fill(0);
 	// Load fontset
 	for (int i = 0; i < 80; ++i)
-		m_Memory[i] = Fontset[i];
+		m_Memory[i+ 0x50] = Fontset[i];
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
 
@@ -676,9 +702,12 @@ int main(int argc, char** argv)
 	glutKeyboardUpFunc(keyboardUp);
 	setupTexture();
 	// working directory is a project directory
+#if 1
+
 	std::ifstream file;
 	//file.open("./../games/pong2.c8", std::ios::binary);
-	file.open("./../test_opcode.ch8", std::ios::binary);
+	//file.open("./../test_opcode.ch8", std::ios::in | std::ios::binary);
+	file.open("./../2-ibm-logo.ch8", std::ios::in | std::ios::binary);
 
 	if (file.is_open())
 	{
@@ -695,7 +724,23 @@ int main(int argc, char** argv)
 	{
 		assert(false);
 	}
+	#else
+	using namespace std;
+	ifstream ROM("./../test.txt");
+	char byte;
+	char byte1;
+	if (ROM.is_open()) {
+		for (int i = 0x200; ROM.get(byte), ROM.get(byte1); i++) {
+			m_Memory[i] = (uint8_t)byte1;
+			m_Memory[i] <<= 4;
+			m_Memory[i] |= byte;
+		}
+	}
+	ROM.close();
+#endif // 0
+
 
 	glutMainLoop();
 
 }
+
