@@ -7,8 +7,8 @@
 #include <algorithm>
 #define GLUT_STATIC_LIB
 #include "glut.h"
-using Byte = uint8_t;
-using Word = uint16_t;
+using Byte = unsigned char;
+using Word = unsigned short;
 Byte delayTimer = 0;
 Byte soundTimer = 0;
 const int SCREEN_W = 64;
@@ -97,7 +97,8 @@ void ExecuteOpCode(Word opCode)
 		m_ProgramCounter = opCode & 0x0FFF; // go to address 0x1NNN
 		break;
 	case 0x2000: // call subroutine at address 0x2NNN
-		m_Stack[m_StackPtr++] = m_ProgramCounter;
+		m_Stack[m_StackPtr] = m_ProgramCounter;
+		m_StackPtr++;
 		m_ProgramCounter = opCode & 0x0FFF;
 		break;
 	case 0x3000: // 0x3XNN skip next instruction if VX == NN
@@ -255,7 +256,7 @@ void ExecuteOpCode(Word opCode)
 
 			Word x = (opCode >> 8) & 0x000F;
 			Word y = (opCode >> 4) & 0x000F;
-			bool isUnderflow = m_VRegisters[x] < m_VRegisters[y];
+			bool isUnderflow = m_VRegisters[x] > m_VRegisters[y];
 			m_VRegisters[0xF] = (Byte)!isUnderflow;
 			m_VRegisters[x] = m_VRegisters[y] - m_VRegisters[x];
 			m_ProgramCounter += 2;
@@ -266,7 +267,7 @@ void ExecuteOpCode(Word opCode)
 		{
 
 			Word x = (opCode >> 8) & 0x000F;
-			m_VRegisters[0xF] = (m_VRegisters[x] << 7 ) & 0x1;
+			m_VRegisters[0xF] = (m_VRegisters[x] >> 7 ) & 0x1;
 			m_VRegisters[x] <<= 1;
 			m_ProgramCounter += 2;
 			break;
@@ -282,7 +283,7 @@ void ExecuteOpCode(Word opCode)
 
 		Word x = (opCode >> 8) & 0x000F;
 		Word y = (opCode >> 4) & 0x000F;
-		bool check = m_VRegisters[x] == m_VRegisters[y];
+		bool check = m_VRegisters[x] != m_VRegisters[y];
 		if (check)
 		{
 			m_ProgramCounter += 4;
@@ -306,13 +307,12 @@ void ExecuteOpCode(Word opCode)
 
 		Word nnn = opCode & 0x0FFF;
 		m_ProgramCounter = nnn + m_VRegisters[0];
-		m_ProgramCounter += 2;
 		break;
 	}
 	case 0xC000: // 0xCXNN: Sets VX to the result of a bitwise and operation on a random number (Typically: 0 to 255) and NN
 		
 	{
-		auto rand = Random();
+		auto rand = Random() &0xFF;
 		Word x = (opCode >> 8) & 0x000F;
 		Word nn = (opCode) & 0x00FF;
 		m_VRegisters[x] = rand & nn;
@@ -331,20 +331,21 @@ void ExecuteOpCode(Word opCode)
 
 	{
 
-		Word x = (opCode >> 8) & 0x000F;
-		Word y = (opCode >> 4) & 0x000F;
+		Word vx = (opCode >> 8) & 0x000F;
+		Word vy = (opCode >> 4) & 0x000F;
 		Word height = (opCode ) & 0x000F;
 		const Word width = 8;
-		for (int i = 0; i < height; i++)
+		m_VRegisters[0xF] = 0;
+		for (int y = 0; y < height; y++)
 		{
-			Word pixel = m_Memory[m_AddressI + i];
-			for (int j = 0; j < width; j++)
+			Word pixel = m_Memory[m_AddressI + y];
+			for (int x = 0; x < width; x++)
 			{
-				if ((pixel & (0x80 >> j)) != 0)
+				if ((pixel & (0x80 >> x)) != 0)
 				{
-				  if (m_ScreenData[(x + j + ((y + i) * 64))] == 1)
+				  if (m_ScreenData[(vx +x+ ((vy + y) * 64))] == 1)
 					  m_VRegisters[0xF] = 1;
-				  m_ScreenData[x + j + ((y + i) * 64)] ^= 1;
+				  m_ScreenData[(vx + x + ((vy + y) * 64))] ^= 1;
 				}
 			}
 		}
@@ -359,7 +360,7 @@ void ExecuteOpCode(Word opCode)
 		{
 
 			Word x = (opCode >> 8) & 0x000F;
-			if (m_Keys[m_VRegisters[x]] == 1)
+			if (m_Keys[m_VRegisters[x]] !=0 )
 			{
 				m_ProgramCounter += 4;
 			}
@@ -407,7 +408,9 @@ void ExecuteOpCode(Word opCode)
 			auto check = std::find(m_Keys.begin(), m_Keys.end(), 1);
 			if (check != m_Keys.end())
 			{
-				m_VRegisters[x] = *check;
+				int index = std::distance(m_Keys.begin(), check);
+
+				m_VRegisters[x] = index;
 			}
 			else
 			{
@@ -435,11 +438,11 @@ void ExecuteOpCode(Word opCode)
 		case 0x001E: // Adds VX to I. VF is not affected
 		{
 			Word x = (opCode >> 8) & 0x000F;
-			if (x + m_AddressI > 0xFFF)
-			{
-				m_VRegisters[0xF] = 1;
-			}
-			else m_VRegisters[0xF] = 0;
+			//if (x + m_AddressI > 0xFFF)
+			//{
+			//	m_VRegisters[0xF] = 1;
+			//}
+			//else m_VRegisters[0xF] = 0;
 			m_AddressI += m_VRegisters[x];
 			m_ProgramCounter += 2;
 			break;
@@ -519,6 +522,22 @@ void setupTexture()
 	glEnable(GL_TEXTURE_2D);
 }
 
+void debug_render()
+{
+	// Draw
+	for (int y = 0; y < 32; ++y)
+	{
+		for (int x = 0; x < 64; ++x)
+		{
+			if (m_ScreenData[(y * 64) + x] == 0)
+				printf("O");
+			else
+				printf(" ");
+		}
+		printf("\n");
+	}
+	printf("\n");
+}
 
 void reshape_window(GLsizei w, GLsizei h)
 {
@@ -565,7 +584,7 @@ void emulate()
 void display()
 {
 	emulate();
-
+	debug_render();
 	if (m_UpdateScreen)
 	{
 		// Clear framebuffer
@@ -658,14 +677,17 @@ int main(int argc, char** argv)
 	setupTexture();
 	// working directory is a project directory
 	std::ifstream file;
-	file.open("./../games/pong2.c8", std::ios::binary);
+	//file.open("./../games/pong2.c8", std::ios::binary);
+	file.open("./../test_opcode.ch8", std::ios::binary);
 
 	if (file.is_open())
 	{
 		file.seekg(0, std::ios::end);
 		auto fileSize = file.tellg();
 		file.seekg(0, std::ios::beg);
+
 		auto memory = (char*)m_Memory.data() + 512;
+
 		file.read(memory, fileSize);
 		file.close();
 	}
