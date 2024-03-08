@@ -5,6 +5,7 @@
 #include<cassert>
 #include <time.h>
 #include <algorithm>
+#include <chrono>
 #define GLUT_STATIC_LIB
 #include "glut.h"
 using Byte = uint8_t;
@@ -606,8 +607,14 @@ void emulate()
 
 }
 
+auto lastCycleTime = std::chrono::high_resolution_clock::now();
+float cycleDelay = 1.7;
 void display()
 {
+	auto currentTime = std::chrono::high_resolution_clock::now();
+	float dt = std::chrono::duration<float, std::chrono::milliseconds::period>(currentTime - lastCycleTime).count();
+	if (dt < cycleDelay) return;
+	lastCycleTime = currentTime;
 	emulate();
 	//debug_render();
 	if (m_UpdateScreen)
@@ -673,7 +680,6 @@ void keyboardUp(unsigned char key, int x, int y)
 	else if (key == 'c')	m_Keys[0xB] = 0;
 	else if (key == 'v')	m_Keys[0xF] = 0;
 }
-
 int main(int argc, char** argv)
 {
 	srand(time(NULL));
@@ -705,9 +711,9 @@ int main(int argc, char** argv)
 #if 1
 
 	std::ifstream file;
-	//file.open("./../games/pong2.c8", std::ios::binary);
+	file.open("./../games/pong2.c8", std::ios::binary);
 	//file.open("./../test_opcode.ch8", std::ios::in | std::ios::binary);
-	file.open("./../2-ibm-logo.ch8", std::ios::in | std::ios::binary);
+	//file.open("./../2-ibm-logo.ch8", std::ios::in | std::ios::binary);
 
 	if (file.is_open())
 	{
