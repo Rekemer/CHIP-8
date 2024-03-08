@@ -6,6 +6,7 @@
 #include <time.h>
 #include <algorithm>
 #include <chrono>
+#include <iostream>
 #define GLUT_STATIC_LIB
 #include "glut.h"
 using Byte = uint8_t;
@@ -232,7 +233,7 @@ void ExecuteOpCode(Word opCode)
 			Word y = (opCode >> 4) & 0x000F;
 			// a - b >= min
 			// a  >= min - b if that is not the case then we have overflow situation
-			bool isUnderflow = m_VRegisters[y] < m_VRegisters[x];
+			bool isUnderflow = m_VRegisters[x] < m_VRegisters[y];
 			m_VRegisters[0xF] = (Byte)!isUnderflow;
 			m_VRegisters[x] -= m_VRegisters[y];
 			m_ProgramCounter += 2;
@@ -258,7 +259,7 @@ void ExecuteOpCode(Word opCode)
 
 			Word x = (opCode >> 8) & 0x000F;
 			Word y = (opCode >> 4) & 0x000F;
-			bool isUnderflow = m_VRegisters[x] > m_VRegisters[y];
+			bool isUnderflow = m_VRegisters[y] > m_VRegisters[x];
 			m_VRegisters[0xF] = (Byte)!isUnderflow;
 			m_VRegisters[x] = m_VRegisters[y] - m_VRegisters[x];
 			m_ProgramCounter += 2;
@@ -339,7 +340,7 @@ void ExecuteOpCode(Word opCode)
 
 		const Word width = 8;
 		m_VRegisters[0xF] = 0;
-		Byte xPos = m_VRegisters[vx] % SCREEN_W;
+		Byte  xPos = m_VRegisters[vx] % SCREEN_W;
 		Byte  yPos = m_VRegisters[vy] % SCREEN_H;
 		for (int y = 0; y < height; y++)
 		{
@@ -349,7 +350,11 @@ void ExecuteOpCode(Word opCode)
 				// test if we draw
 				if ((binaryPixelRow & (0x80 >> x)) != 0)
 				{
-				  auto index = (xPos + x + ((yPos + y) * SCREEN_W));
+				  if ((xPos + x) >= SCREEN_W || (yPos + y) >= SCREEN_H)
+				  {
+				  	continue;
+				  }
+				  auto index = (xPos + x + ((yPos + y) * SCREEN_W)) ;
 				  if (m_ScreenData[index] == 1)
 					  m_VRegisters[0xF] = 1;
 				  m_ScreenData[index] ^=  1;
@@ -585,16 +590,16 @@ void updateTexture()
 void emulate()
 {
 	auto code = GetOpCode(m_Memory[m_ProgramCounter], m_Memory[m_ProgramCounter+1]);
-	printf("opCode: 0x%X\n", code);
-	if (0x13DC == code)
-	{
-		printf("opCode: 0x%X\n", code);
-	}
+	//printf("opCode: 0x%X\n", code);
+	//if (0x13DC == code)
+	//{
+	//	printf("opCode: 0x%X\n", code);
+	//}
 	ExecuteOpCode(code);
 
 	if (delayTimer > 0)
 	{
-		printf("DECREMENT!\n");
+		std::cout << "DECREMENT: " << delayTimer << std::endl;
 		--delayTimer;
 	}
 
@@ -711,8 +716,9 @@ int main(int argc, char** argv)
 #if 1
 
 	std::ifstream file;
-	file.open("./../games/pong2.c8", std::ios::binary);
-	//file.open("./../games/Pong (1 player).ch8", std::ios::binary);
+	//file.open("./../games/pong2.c8", std::ios::binary);
+	file.open("./../games/Pong (1 player).ch8", std::ios::binary);
+	//file.open("./../games/Space Invaders [David Winter] (alt).ch8", std::ios::binary);
 	//file.open("./../test_opcode.ch8", std::ios::in | std::ios::binary);
 	//file.open("./../c8_test.c8", std::ios::in | std::ios::binary);
 	//file.open("./../2-ibm-logo.ch8", std::ios::in | std::ios::binary);
