@@ -214,7 +214,7 @@ void ExecuteOpCode(Word opCode)
 			Word y = (opCode >> 4) & 0x000F;
 			// a + b <= max
 			// a <= max - b if that is not the case then we have overflow situation
-			bool isOverflow = m_VRegisters[x] > (0xFF - m_VRegisters[y]);
+			bool isOverflow = m_VRegisters[y] > (0xFF - m_VRegisters[x]);
 			m_VRegisters[0xF] = (Byte)isOverflow;
 			m_VRegisters[x] += m_VRegisters[y];
 			m_ProgramCounter += 2;
@@ -232,7 +232,7 @@ void ExecuteOpCode(Word opCode)
 			Word y = (opCode >> 4) & 0x000F;
 			// a - b >= min
 			// a  >= min - b if that is not the case then we have overflow situation
-			bool isUnderflow = m_VRegisters[x] < m_VRegisters[y];
+			bool isUnderflow = m_VRegisters[y] < m_VRegisters[x];
 			m_VRegisters[0xF] = (Byte)!isUnderflow;
 			m_VRegisters[x] -= m_VRegisters[y];
 			m_ProgramCounter += 2;
@@ -339,8 +339,8 @@ void ExecuteOpCode(Word opCode)
 
 		const Word width = 8;
 		m_VRegisters[0xF] = 0;
-		Byte xPos = m_VRegisters[vx] ;
-		Byte  yPos = m_VRegisters[vy] ;
+		Byte xPos = m_VRegisters[vx] % SCREEN_W;
+		Byte  yPos = m_VRegisters[vy] % SCREEN_H;
 		for (int y = 0; y < height; y++)
 		{
 			Word binaryPixelRow = m_Memory[m_AddressI + y];
@@ -349,7 +349,7 @@ void ExecuteOpCode(Word opCode)
 				// test if we draw
 				if ((binaryPixelRow & (0x80 >> x)) != 0)
 				{
-				  auto index = (xPos + x + ((yPos + y) * 64));
+				  auto index = (xPos + x + ((yPos + y) * SCREEN_W));
 				  if (m_ScreenData[index] == 1)
 					  m_VRegisters[0xF] = 1;
 				  m_ScreenData[index] ^=  1;
@@ -445,7 +445,7 @@ void ExecuteOpCode(Word opCode)
 		case 0x001E: // Adds VX to I. VF is not affected
 		{
 			Word x = (opCode >> 8) & 0x000F;
-			//if (x + m_AddressI > 0xFFF)
+			//if (m_VRegisters[x] + m_AddressI > 0xFFF)
 			//{
 			//	m_VRegisters[0xF] = 1;
 			//}
@@ -712,7 +712,9 @@ int main(int argc, char** argv)
 
 	std::ifstream file;
 	file.open("./../games/pong2.c8", std::ios::binary);
+	//file.open("./../games/Pong (1 player).ch8", std::ios::binary);
 	//file.open("./../test_opcode.ch8", std::ios::in | std::ios::binary);
+	//file.open("./../c8_test.c8", std::ios::in | std::ios::binary);
 	//file.open("./../2-ibm-logo.ch8", std::ios::in | std::ios::binary);
 
 	if (file.is_open())
