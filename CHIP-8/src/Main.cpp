@@ -31,24 +31,23 @@ Word m_ProgramCounter; // the 16-bit program counter
 std::array<Word,16> m_Stack; // to save programm coutner value if subroutine is called
 int m_StackPtr = 0;
 bool m_UpdateScreen = true;
-unsigned char Fontset[80] =
-{
-	0xF0, 0x90, 0x90, 0x90, 0xF0, //0
-	0x20, 0x60, 0x20, 0x20, 0x70, //1
-	0xF0, 0x10, 0xF0, 0x80, 0xF0, //2
-	0xF0, 0x10, 0xF0, 0x10, 0xF0, //3
-	0x90, 0x90, 0xF0, 0x10, 0x10, //4
-	0xF0, 0x80, 0xF0, 0x10, 0xF0, //5
-	0xF0, 0x80, 0xF0, 0x90, 0xF0, //6
-	0xF0, 0x10, 0x20, 0x40, 0x40, //7
-	0xF0, 0x90, 0xF0, 0x90, 0xF0, //8
-	0xF0, 0x90, 0xF0, 0x10, 0xF0, //9
-	0xF0, 0x90, 0xF0, 0x90, 0x90, //A
-	0xE0, 0x90, 0xE0, 0x90, 0xE0, //B
-	0xF0, 0x80, 0x80, 0x80, 0xF0, //C
-	0xE0, 0x90, 0x90, 0x90, 0xE0, //D
-	0xF0, 0x80, 0xF0, 0x80, 0xF0, //E
-	0xF0, 0x80, 0xF0, 0x80, 0x80  //F
+unsigned char Fontset[80] = {
+		0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+		0x20, 0x60, 0x20, 0x20, 0x70, // 1
+		0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+		0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+		0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+		0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+		0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+		0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+		0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+		0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+		0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+		0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+		0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+		0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+		0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+		0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 };
 constexpr int ScreenDataSize = 64 * 32;
 std::array<Byte, ScreenDataSize> m_ScreenData;
@@ -259,7 +258,7 @@ void ExecuteOpCode(Word opCode)
 
 			Word x = (opCode >> 8) & 0x000F;
 			Word y = (opCode >> 4) & 0x000F;
-			bool isUnderflow = m_VRegisters[y] > m_VRegisters[x];
+			bool isUnderflow = m_VRegisters[y] < m_VRegisters[x];
 			m_VRegisters[0xF] = (Byte)!isUnderflow;
 			m_VRegisters[x] = m_VRegisters[y] - m_VRegisters[x];
 			m_ProgramCounter += 2;
@@ -366,9 +365,9 @@ void ExecuteOpCode(Word opCode)
 		break;
 	}
 	case 0xE000:
-		switch (opCode & 0x00F0)
+		switch (opCode & 0x00FF)
 		{
-		case 0x0090: //0xEX9E: Skips the next instruction if the key stored in VX is pressed
+		case 0x009E: //0xEX9E: Skips the next instruction if the key stored in VX is pressed
 		{
 
 			Word x = (opCode >> 8) & 0x000F;
@@ -382,7 +381,7 @@ void ExecuteOpCode(Word opCode)
 			}
 			break;
 		}
-		case 0x00A0: //0xEXA1: Skips the next instruction if the key stored in VX is not pressed
+		case 0x00A1: //0xEXA1: Skips the next instruction if the key stored in VX is not pressed
 			
 		{
 			Word x = (opCode >> 8) & 0x000F;
@@ -473,7 +472,7 @@ void ExecuteOpCode(Word opCode)
 			Word x = (opCode >> 8) & 0x000F;
 			m_Memory[m_AddressI] = (m_VRegisters[x] / 100);
 			m_Memory[m_AddressI + 1] = (m_VRegisters[x] / 10) % 10;
-			m_Memory[m_AddressI + 2] = (m_VRegisters[x] % 100) % 10;
+			m_Memory[m_AddressI + 2] = (m_VRegisters[x] % 10) % 10;
 			m_ProgramCounter += 2;
 			break;
 		}
@@ -599,7 +598,7 @@ void emulate()
 
 	if (delayTimer > 0)
 	{
-		std::cout << "DECREMENT: " << delayTimer << std::endl;
+		//std::cout << "DECREMENT: " << delayTimer << std::endl;
 		--delayTimer;
 	}
 
@@ -613,7 +612,8 @@ void emulate()
 }
 
 auto lastCycleTime = std::chrono::high_resolution_clock::now();
-float cycleDelay = 1.7;
+// amount of time one frame executes
+float cycleDelay = 3;
 void display()
 {
 	auto currentTime = std::chrono::high_resolution_clock::now();
@@ -698,7 +698,7 @@ int main(int argc, char** argv)
 	m_Stack.fill(0);
 	// Load fontset
 	for (int i = 0; i < 80; ++i)
-		m_Memory[i+ 0x50] = Fontset[i];
+		m_Memory[i] = Fontset[i];
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
 
@@ -717,7 +717,11 @@ int main(int argc, char** argv)
 
 	std::ifstream file;
 	//file.open("./../games/pong2.c8", std::ios::binary);
-	file.open("./../games/Pong (1 player).ch8", std::ios::binary);
+	//file.open("./../JamesGriffin CHIP-8-Emulator master roms/MAZE", std::ios::binary);
+	file.open("./../JamesGriffin CHIP-8-Emulator master roms/PONG2", std::ios::binary);
+	//file.open("./../kripod chip8-roms master programs/SQRT Test [Sergey Naydenov, 2010].ch8", std::ios::binary);
+	//file.open("./../games/Pong (1 player).ch8", std::ios::binary);
+	//file.open("./../games/Space Invaders [David Winter] (alt).ch8", std::ios::binary);
 	//file.open("./../games/Space Invaders [David Winter] (alt).ch8", std::ios::binary);
 	//file.open("./../test_opcode.ch8", std::ios::in | std::ios::binary);
 	//file.open("./../c8_test.c8", std::ios::in | std::ios::binary);
