@@ -31,6 +31,11 @@ Word m_ProgramCounter; // the 16-bit program counter
 std::array<Word,16> m_Stack; // to save programm coutner value if subroutine is called
 int m_StackPtr = 0;
 bool m_UpdateScreen = true;
+std::array<int, 3> colors = { 0x00,0x88,0xFF };
+std::vector<int> colorLevels ;
+int maxColorLevelIndex;
+int maxColorIndex;
+int framePersistence = 3;
 unsigned char Fontset[80] = {
 		0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
 		0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -51,6 +56,8 @@ unsigned char Fontset[80] = {
 };
 constexpr int ScreenDataSize = 64 * 32;
 std::array<Byte, ScreenDataSize> m_ScreenData;
+std::array<Byte, ScreenDataSize> m_PhysDisplay;
+std::array<bool, ScreenDataSize> m_Updated;
 std::array<unsigned char, 16>m_Keys;
 // two bytes make up opCode, so programm counter increments by 2
 Word GetOpCode(Byte a, Byte b)
@@ -79,6 +86,7 @@ void ExecuteOpCode(Word opCode)
 
 			m_UpdateScreen = true;
 			m_ScreenData.fill(0);
+			m_Updated.fill(false);
 			m_ProgramCounter += 2;
 			break;
 		}
@@ -354,9 +362,11 @@ void ExecuteOpCode(Word opCode)
 				  	continue;
 				  }
 				  auto index = (xPos + x + ((yPos + y) * SCREEN_W)) ;
+				  // collision check
 				  if (m_ScreenData[index] == 1)
 					  m_VRegisters[0xF] = 1;
-				  m_ScreenData[index] ^=  1;
+				  m_ScreenData[index] ^= 1;
+				  m_Updated[index] = true;
 				}
 			}
 		}
@@ -570,11 +580,53 @@ void updateTexture()
 	// Update pixels
 	for (int y = 0; y < 32; ++y)
 		for (int x = 0; x < 64; ++x)
-			if (m_ScreenData[(y * 64) + x] == 0)
-				screenData[y][x][0] = screenData[y][x][1] = screenData[y][x][2] = 0;	// Disabled
-			else
-				screenData[y][x][0] = screenData[y][x][1] = screenData[y][x][2] = 255;  // Enabled
+		{
+			int index = (y * 64) + x;
+			// if updated and draws 1 then max
+			if (!m_Updated[index] || m_ScreenData[index] != 1)
+			{
+				//if (!m_Updated[index])
+				//{
+				//	screenData[y][x][0] = screenData[y][x][1] = screenData[y][x][2] = colors[0];	// Disabled
+				//}
+				continue;
+			}
+			
+			m_PhysDisplay[index] = maxColorLevelIndex;
+			screenData[y][x][0] = screenData[y][x][1] = screenData[y][x][2] = colors[2];  // Enabled
+		}
+	std::vector<std::vector<int>>dimmedPixels(maxColorIndex);
+	for (int y = 0; y < 32; ++y)
+		for (int x = 0; x < 64; ++x)
+		{
+			int index = (y * 64) + x;
+			if (m_ScreenData[index] == 1) continue;
+			auto prevLevel = m_PhysDisplay[index];
+			if (prevLevel == 0) continue; // skip if fully off
 
+			auto currentLevel = prevLevel - 1;
+			m_PhysDisplay[index] = currentLevel;
+
+			if (colorLevels[currentLevel] != colorLevels[prevLevel]) {
+				auto colorIndex =colorLevels[currentLevel];
+
+				dimmedPixels[colorIndex].push_back(x);
+				dimmedPixels[colorIndex].push_back(y);
+			}
+
+		}
+	// draw dimmed pixels
+	for (auto color = 0; color < dimmedPixels.size(); color++) {
+		auto pixels = dimmedPixels[color];
+		//this.context.fillStyle = this.colors[color];
+
+		for (int j = 0; j < pixels.size(); j += 2) {
+			auto  x = pixels[j];
+			auto  y = pixels[j + 1];
+
+			screenData[y][x][0] = screenData[y][x][1] = screenData[y][x][2] = colors[color];
+		}
+	}
 	// Update Texture
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, SCREEN_W, SCREEN_H, GL_RGB, GL_UNSIGNED_BYTE, (GLvoid*)screenData);
 
@@ -613,7 +665,7 @@ void emulate()
 
 auto lastCycleTime = std::chrono::high_resolution_clock::now();
 // amount of time one frame executes
-float cycleDelay = 3;
+float cycleDelay = 1.5;
 void display()
 {
 	auto currentTime = std::chrono::high_resolution_clock::now();
@@ -624,6 +676,7 @@ void display()
 	//debug_render();
 	if (m_UpdateScreen)
 	{
+
 		// Clear framebuffer
 		glClear(GL_COLOR_BUFFER_BIT);
 	
@@ -693,9 +746,20 @@ int main(int argc, char** argv)
 	m_ProgramCounter = 0x200;
 	m_VRegisters.fill(0);
 	m_ScreenData.fill(0);
+	m_Updated.fill(false);
 	m_Memory.fill(0);
 	m_Keys.fill(0);
 	m_Stack.fill(0);
+
+	for (int i = 0; i < colors.size(); i++)
+	{
+		for (int j = 0; j < framePersistence; j++)
+		{
+			colorLevels.push_back(i);
+		}
+	}
+	maxColorIndex = colors.size() - 1;
+	maxColorLevelIndex = colorLevels.size() - 1;
 	// Load fontset
 	for (int i = 0; i < 80; ++i)
 		m_Memory[i] = Fontset[i];
@@ -712,9 +776,8 @@ int main(int argc, char** argv)
 	glutKeyboardFunc(keyboardDown);
 	glutKeyboardUpFunc(keyboardUp);
 	setupTexture();
-	// working directory is a project directory
-#if 1
 
+	// working directory is a project directory
 	std::ifstream file;
 	//file.open("./../games/pong2.c8", std::ios::binary);
 	//file.open("./../JamesGriffin CHIP-8-Emulator master roms/MAZE", std::ios::binary);
@@ -742,20 +805,6 @@ int main(int argc, char** argv)
 	{
 		assert(false);
 	}
-	#else
-	using namespace std;
-	ifstream ROM("./../test.txt");
-	char byte;
-	char byte1;
-	if (ROM.is_open()) {
-		for (int i = 0x200; ROM.get(byte), ROM.get(byte1); i++) {
-			m_Memory[i] = (uint8_t)byte1;
-			m_Memory[i] <<= 4;
-			m_Memory[i] |= byte;
-		}
-	}
-	ROM.close();
-#endif // 0
 
 
 	glutMainLoop();
