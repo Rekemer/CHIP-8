@@ -4,6 +4,7 @@
 #include<vector>
 #include<array>
 #include <chrono>
+#include <cassert>
 #include <iostream>
 #define GLUT_STATIC_LIB
 #include <windows.h> 
@@ -27,11 +28,11 @@ ID3D11RenderTargetView* backbuffer;
 // Define the functionality of the rasterizer stage.
 ID3D11RasterizerState* rasterizerState = nullptr;
 D3D11_VIEWPORT viewport = { 0 };
-ID3D11VertexShader* g_d3dVertexShader = nullptr;
-ID3D11PixelShader* g_d3dPixelShader = nullptr;
+ID3D11VertexShader* vertex = nullptr;
+ID3D11PixelShader* pixel= nullptr;
 unsigned int clientWidth = 0;
 unsigned int clientHeight = 0;
-
+bool vsync = true;
 // Safely release a COM object.
 template<typename T>
 inline void SafeRelease(T& ptr)
@@ -42,7 +43,17 @@ inline void SafeRelease(T& ptr)
 		ptr = NULL;
 	}
 }
+void CleanD3D() 
+{
+	SafeRelease(vertex);
+	SafeRelease(pixel);
 
+	SafeRelease(backbuffer);
+	SafeRelease(rasterizerState);
+	SafeRelease(swapchain);
+	SafeRelease(devcon);
+	SafeRelease(dev);
+}
 DXGI_RATIONAL QueryRefreshRate(UINT screenWidth, UINT screenHeight, BOOL vsync)
 {
 	DXGI_RATIONAL refreshRate = { 0, 1 };
@@ -143,7 +154,7 @@ int InitD3D(HWND hWnd)
 	// fill the swap chain description struct
 	scd.BufferCount = 1;                                    // one back buffer
 	scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;     // use 32-bit color
-	scd.BufferDesc.RefreshRate = QueryRefreshRate(clientWidth, clientHeight, true);
+	scd.BufferDesc.RefreshRate = QueryRefreshRate(clientWidth, clientHeight, vsync);
 	scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;      // how swap chain is to be used
 	scd.OutputWindow = hWnd;                                // the window to be used
 	scd.SampleDesc.Count = 1;                               // how many multisamples
@@ -216,16 +227,73 @@ int InitD3D(HWND hWnd)
 	viewport.MinDepth = 0.0f;
 	viewport.MaxDepth = 1.0f;
 
+	// Load the compiled vertex shader.
+	ID3DBlob* vertexShaderBlob;
+	LPCWSTR compiledVertexShaderObject = L"./../x64/Debug/vertex.cso";
+
+	auto hr = D3DReadFileToBlob(compiledVertexShaderObject, &vertexShaderBlob);
+	if (FAILED(hr))
+	{
+		return 1;
+	}
+
+	hr = dev->CreateVertexShader(vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), nullptr, &vertex);
+	if (FAILED(hr))
+	{
+		return 1;
+	}
+
+	ID3DBlob* pixleShaderBlob;
+	compiledVertexShaderObject = L"./../x64/Debug/pixel.cso";
+
+	 hr = D3DReadFileToBlob(compiledVertexShaderObject, &pixleShaderBlob);
+	if (FAILED(hr))
+	{
+		return 1;
+	}
+
+	hr = dev->CreatePixelShader(pixleShaderBlob->GetBufferPointer(), pixleShaderBlob->GetBufferSize(), nullptr, &pixel);
+	if (FAILED(hr))
+	{
+		return 1;
+	}
+	devcon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	devcon->VSSetShader(vertex, nullptr, 0);
+	devcon->PSSetShader(pixel, nullptr, 0);
+	devcon->RSSetState(rasterizerState);
+	devcon->RSSetViewports(1, &viewport);
+	devcon->OMSetRenderTargets(1, &backbuffer, nullptr);
 	return 0;
 }
-// this is the function that cleans up Direct3D and COM
-void CleanD3D()
+
+
+void Present(bool vSync)
 {
-    // close and release all existing COM objects
-    swapchain->Release();
-    dev->Release();
-    devcon->Release();
+	if (vSync)
+	{
+		swapchain->Present(1, 0);
+	}
+	else
+	{
+		swapchain->Present(0, 0);
+	}
 }
+
+// Clear the color and depth buffers.
+void Clear(const FLOAT clearColor[4])
+{
+	devcon->ClearRenderTargetView(backbuffer, clearColor);
+}
+
+void Render()
+{
+	assert(dev);
+	assert(devcon);
+	Clear(Colors::CornflowerBlue);
+	devcon->Draw(6, 0);
+	Present(vsync);
+}
+
 
 // the WindowProc function prototype
 LRESULT CALLBACK WindowProc(HWND hWnd,
@@ -497,9 +565,9 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		return -1;
 	}
 	// this struct holds Windows event messages
-	MSG msg;
+	MSG msg{};
 
-	while (TRUE)
+	while (true)
 	{
 		// Check to see if any messages are waiting in the queue
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
@@ -516,11 +584,12 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		}
 		else
 		{
-			// Run game code here
-			// ...
-			// ...
+			Render();
 		}
 	}
+
+
+	CleanD3D();
 	// return this part of the WM_QUIT message to Windows
 	return msg.wParam;
 }

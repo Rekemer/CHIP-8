@@ -25,4 +25,8 @@
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="shaders\vertex.hlsl" />
+    <FxCompile Include="shaders\pixel.hlsl" />
+  </ItemGroup>
 </Project>
