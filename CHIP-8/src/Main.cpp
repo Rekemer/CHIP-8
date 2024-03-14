@@ -38,6 +38,7 @@ unsigned int clientHeight = 0;
 ID3D11Texture2D* tex;
 ID3D11ShaderResourceView* texView;
 ID3D11SamplerState* sampler;
+D3D11_MAPPED_SUBRESOURCE mappedResource;
 bool vsync = true;
 template<typename T>
 inline void SafeRelease(T& ptr)
@@ -277,9 +278,9 @@ int InitD3D(HWND hWnd)
 	spec.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // Pixel format (e.g., 32-bit RGBA)
 	spec.SampleDesc.Count = 1; // Number of multisamples per pixel (1 for no anti-aliasing)
 	spec.SampleDesc.Quality = 0; // Quality level of multisampling
-	spec.Usage = D3D11_USAGE_DEFAULT; // How the texture will be used (e.g., read/write)
+	spec.Usage = D3D11_USAGE_DYNAMIC; // How the texture will be used (e.g., read/write)
 	spec.BindFlags = D3D11_BIND_SHADER_RESOURCE; // How the texture will be bound to the pipeline (e.g., as a shader resource)
-	spec.CPUAccessFlags = 0; // CPU access flags (e.g., if the CPU needs to access the texture)
+	spec.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; // CPU access flags (e.g., if the CPU needs to access the texture)
 	spec.MiscFlags = 0; // Miscellaneous flags
 
 	hr = dev->CreateTexture2D(&spec,nullptr, &tex);
@@ -309,9 +310,7 @@ int InitD3D(HWND hWnd)
 	dev->CreateSamplerState( &samplerDesc, &sampler);
 	devcon->PSSetSamplers(0,1,&sampler);
 
-
 	
-
 	return 0;
 }
 
@@ -369,8 +368,7 @@ std::array<Byte, ScreenDataSize> m_PhysDisplay;
 Chip8 chip;
 
 
-typedef unsigned __int8 u8;
-u8 screenData[SCREEN_H][SCREEN_W][3];
+uint8_t screenData[SCREEN_H][SCREEN_W][3];
 // Setup Texture
 void setupTexture()
 {
@@ -475,15 +473,34 @@ void updateTexture()
 	glTexCoord2d(0.0, 1.0); 	glVertex2d(0.0, display_height);
 	glEnd();
 #else
-	D3D11_BOX box;
-	box.left = 0;
-	box.right = SCREEN_W;
-	box.top = 0;
-	box.bottom = SCREEN_H;
-	box.front = 0;
-	box.back = 1; // Assuming 2D texture
-	// Update the texture with the data
-	devcon->UpdateSubresource(tex, 0, &box, screenData, SCREEN_W*3, 0);
+	auto hr = devcon->Map(tex, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+
+	if (SUCCEEDED(hr)) {
+		// Update the texture data in the mapped memory
+		uint8_t* pTexData = static_cast<uint8_t*>(mappedResource.pData);
+		uint8_t* pArrayData = &screenData[0][0][0]/* Pointer to your [32][64][3] array */;
+
+		for (int y = 0; y < SCREEN_H; ++y) {
+			for (int x = 0; x < SCREEN_W; ++x) {
+				for (int c = 0; c < 3; ++c) {
+					// Copy data from the array to the texture memory
+					// Calculate index in the 3D array
+					int arrayIndex = (y * SCREEN_W + x) * 3;
+
+					// Calculate index in the texture memory
+					int texIndex = (y * mappedResource.RowPitch) + (x * 4); // Assuming DXGI_FORMAT_R8G8B8A8_UNORM format
+
+					// Copy data from the array to the texture memory for each channel (R, G, B)
+					for (int c = 0; c < 3; ++c) {
+						pTexData[texIndex + c] = pArrayData[arrayIndex + c];
+					}
+				}
+			}
+		}
+
+		// Unmap the texture resource
+		devcon->Unmap(tex, 0);
+	}
 #endif // 0
 
 }
