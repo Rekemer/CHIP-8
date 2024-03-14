@@ -8,12 +8,15 @@
 #include <iostream>
 #define GLUT_STATIC_LIB
 #include <windows.h> 
+#include <memory> 
 
 
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <DirectXMath.h>
 #include <DirectXColors.h>
+
+
 // Link library dependencies
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -32,8 +35,10 @@ ID3D11VertexShader* vertex = nullptr;
 ID3D11PixelShader* pixel= nullptr;
 unsigned int clientWidth = 0;
 unsigned int clientHeight = 0;
+ID3D11Texture2D* tex;
+ID3D11ShaderResourceView* texView;
+ID3D11SamplerState* sampler;
 bool vsync = true;
-// Safely release a COM object.
 template<typename T>
 inline void SafeRelease(T& ptr)
 {
@@ -263,6 +268,50 @@ int InitD3D(HWND hWnd)
 	devcon->RSSetState(rasterizerState);
 	devcon->RSSetViewports(1, &viewport);
 	devcon->OMSetRenderTargets(1, &backbuffer, nullptr);
+
+	D3D11_TEXTURE2D_DESC spec;
+	spec.Width = SCREEN_W; // Width of the texture
+	spec.Height = SCREEN_H; // Height of the texture
+	spec.MipLevels = 1; // Number of mip-map levels (1 for no mip-mapping)
+	spec.ArraySize = 1; // Number of textures in the array (1 for a single texture)
+	spec.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // Pixel format (e.g., 32-bit RGBA)
+	spec.SampleDesc.Count = 1; // Number of multisamples per pixel (1 for no anti-aliasing)
+	spec.SampleDesc.Quality = 0; // Quality level of multisampling
+	spec.Usage = D3D11_USAGE_DEFAULT; // How the texture will be used (e.g., read/write)
+	spec.BindFlags = D3D11_BIND_SHADER_RESOURCE; // How the texture will be bound to the pipeline (e.g., as a shader resource)
+	spec.CPUAccessFlags = 0; // CPU access flags (e.g., if the CPU needs to access the texture)
+	spec.MiscFlags = 0; // Miscellaneous flags
+
+	hr = dev->CreateTexture2D(&spec,nullptr, &tex);
+	if (FAILED(hr))
+	{
+		return 1;
+	}
+	D3D11_SHADER_RESOURCE_VIEW_DESC view;
+	view.Format = spec.Format;
+	view.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	view.Texture2D.MostDetailedMip = 0;
+	view.Texture2D.MipLevels= 1;
+	hr = dev->CreateShaderResourceView(tex,&view, &texView);
+	if (FAILED(hr))
+	{
+		return 1;
+	}
+	devcon->PSSetShaderResources(0, 1, &texView);
+
+
+	D3D11_SAMPLER_DESC samplerDesc{};
+	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT; ;
+	samplerDesc.AddressU= D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressV= D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER; // No comparison function
+	dev->CreateSamplerState( &samplerDesc, &sampler);
+	devcon->PSSetSamplers(0,1,&sampler);
+
+
+	
+
 	return 0;
 }
 
@@ -271,7 +320,11 @@ void Present(bool vSync)
 {
 	if (vSync)
 	{
-		swapchain->Present(1, 0);
+		auto hr = swapchain->Present(1, 0);
+		if (FAILED(hr))
+		{
+			MessageBox(nullptr, TEXT("Failed to present."), TEXT("Error"), MB_OK);
+		}
 	}
 	else
 	{
@@ -319,13 +372,13 @@ Chip8 chip;
 typedef unsigned __int8 u8;
 u8 screenData[SCREEN_H][SCREEN_W][3];
 // Setup Texture
-#if 0
 void setupTexture()
 {
 	// Clear screen
 	for (int y = 0; y < SCREEN_H; ++y)
 		for (int x = 0; x < SCREEN_W; ++x)
 			screenData[y][x][0] = screenData[y][x][1] = screenData[y][x][2] = 0;
+#if 0
 
 	// Create a texture 
 	glTexImage2D(GL_TEXTURE_2D, 0, 3, SCREEN_W, SCREEN_H, 0, GL_RGB, GL_UNSIGNED_BYTE, (GLvoid*)screenData);
@@ -338,28 +391,29 @@ void setupTexture()
 
 	// Enable textures
 	glEnable(GL_TEXTURE_2D);
-}
-
-
-void reshape_window(GLsizei w, GLsizei h)
-{
-	glClearColor(0.0f, 0.0f, 0.5f, 0.0f);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	gluOrtho2D(0, w, h, 0);
-	glMatrixMode(GL_MODELVIEW);
-	glViewport(0, 0, w, h);
-	// Resize quad
-	display_width = w;
-	display_height = h;
-
-
-}
 #endif
+}
+
+
+//void reshape_window(GLsizei w, GLsizei h)
+//{
+//	glClearColor(0.0f, 0.0f, 0.5f, 0.0f);
+//	glMatrixMode(GL_PROJECTION);
+//	glLoadIdentity();
+//	gluOrtho2D(0, w, h, 0);
+//	glMatrixMode(GL_MODELVIEW);
+//	glViewport(0, 0, w, h);
+//	// Resize quad
+//	display_width = w;
+//	display_height = h;
+//
+//
+//}
 
 
 void updateTexture()
 {
+
 	// Update pixels
 	auto& screen = chip.GetScreen();
 	auto& updated = chip.GetUpdated();
@@ -420,6 +474,16 @@ void updateTexture()
 	glTexCoord2d(1.0, 1.0); 	glVertex2d(display_width, display_height);
 	glTexCoord2d(0.0, 1.0); 	glVertex2d(0.0, display_height);
 	glEnd();
+#else
+	D3D11_BOX box;
+	box.left = 0;
+	box.right = SCREEN_W;
+	box.top = 0;
+	box.bottom = SCREEN_H;
+	box.front = 0;
+	box.back = 1; // Assuming 2D texture
+	// Update the texture with the data
+	devcon->UpdateSubresource(tex, 0, &box, screenData, SCREEN_W*3, 0);
 #endif // 0
 
 }
@@ -438,13 +502,15 @@ void display()
 	//debug_render();
 	if (chip.IsUpdateScreen())
 	{
+		updateTexture();
 #if 0
 
 		glClear(GL_COLOR_BUFFER_BIT);
 	
-		updateTexture();
 	
 		glutSwapBuffers();
+#else
+		Render();
 	
 #endif // 0
 
@@ -564,6 +630,53 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		MessageBox(nullptr, TEXT("Failed to create DirectX device and swap chain."), TEXT("Error"), MB_OK);
 		return -1;
 	}
+
+	//file.open("./../games/pong2.c8", std::ios::binary);
+	//file.open("./../JamesGriffin CHIP-8-Emulator master roms/MAZE", std::ios::binary);
+	//file.open("./../JamesGriffin CHIP-8-Emulator master roms/PONG2", std::ios::binary);
+	//file.open("./../kripod chip8-roms master programs/SQRT Test [Sergey Naydenov, 2010].ch8", std::ios::binary);
+	//file.open("./../games/Pong (1 player).ch8", std::ios::binary);
+	//file.open("./../games/Space Invaders [David Winter] (alt).ch8", std::ios::binary);
+	//file.open("./../games/Space Invaders [David Winter] (alt).ch8", std::ios::binary);
+	//file.open("./../test_opcode.ch8", std::ios::in | std::ios::binary);
+	//file.open("./../c8_test.c8", std::ios::in | std::ios::binary);
+	//file.open("./../2-ibm-logo.ch8", std::ios::in | std::ios::binary);
+	keys.fill(0);
+	chip.Init();
+	setupTexture();
+
+	for (int i = 0; i < colors.size(); i++)
+	{
+		for (int j = 0; j < framePersistence; j++)
+		{
+			colorLevels.push_back(i);
+		}
+	}
+	maxColorIndex = colors.size() - 1;
+	maxColorLevelIndex = colorLevels.size() - 1;
+
+	// working directory is a project directory
+
+	//file.open("./../games/pong2.c8", std::ios::binary);
+	//file.open("./../JamesGriffin CHIP-8-Emulator master roms/MAZE", std::ios::binary);
+	//file.open("./../JamesGriffin CHIP-8-Emulator master roms/PONG2", std::ios::binary);
+	//file.open("./../kripod chip8-roms master programs/SQRT Test [Sergey Naydenov, 2010].ch8", std::ios::binary);
+	//file.open("./../games/Pong (1 player).ch8", std::ios::binary);
+	//file.open("./../games/Space Invaders [David Winter] (alt).ch8", std::ios::binary);
+	//file.open("./../games/Space Invaders [David Winter] (alt).ch8", std::ios::binary);
+	//file.open("./../test_opcode.ch8", std::ios::in | std::ios::binary);
+	//file.open("./../c8_test.c8", std::ios::in | std::ios::binary);
+	//file.open("./../2-ibm-logo.ch8", std::ios::in | std::ios::binary);
+
+	try
+	{
+		chip.LoadROM("./../2-ibm-logo.ch8");
+	}
+	catch (const std::exception& e)
+	{
+		std::cout << e.what();
+	}
+
 	// this struct holds Windows event messages
 	MSG msg{};
 
@@ -584,7 +697,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		}
 		else
 		{
-			Render();
+			display();
 		}
 	}
 
