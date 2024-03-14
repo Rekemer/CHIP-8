@@ -34,8 +34,8 @@ VertexShaderOutput SimpleVertexShader( uint id: SV_VertexID)
     VertexShaderOutput OUT;
     
     
-    float right = 516;
-    float top= 439;
+    float right = 484;
+    float top= 361;
     // Define vertices for a fullscreen quad without using indices
     float2 vertices[6] = { 
         float2(-1.0, 1.0), float2(1.0, 1.0), float2(-1.0, -1.0),

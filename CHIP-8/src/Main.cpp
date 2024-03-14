@@ -39,6 +39,7 @@ ID3D11Texture2D* tex;
 ID3D11ShaderResourceView* texView;
 ID3D11SamplerState* sampler;
 D3D11_MAPPED_SUBRESOURCE mappedResource;
+float windowWidth = 500,windowHeight = 400;
 bool vsync = true;
 template<typename T>
 inline void SafeRelease(T& ptr)
@@ -587,9 +588,6 @@ void keyboardUp(unsigned char key, int x, int y)
 
 HWND CreateWin(HINSTANCE hInstance)
 {
-	RECT wr = { 0, 0, 500, 400 };    // set the size, but not the position
-	//Calculates the required size of the window rectangle, based on the desired client - rectangle size.
-	AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);    // adjust the size
 
 	
 	// this struct holds information for the window class
@@ -612,16 +610,16 @@ HWND CreateWin(HINSTANCE hInstance)
 	// the handle for the window, filled by a function
 	HWND hWnd;
 	// create the window and use the result as the handle
-	clientWidth = wr.right - wr.left;
-	clientHeight = wr.bottom - wr.top;
+
+	
 	hWnd = CreateWindowEx(NULL,
 		L"WindowClass1",    // name of the window class
 		L"Our First Windowed Program",   // title of the window
 		WS_OVERLAPPEDWINDOW,    // window style
 		300,    // x-position of the window
 		300,    // y-position of the window
-		clientWidth,    // width of the window
-		clientHeight,    // height of the window
+		windowWidth,    // width of the window
+		windowHeight,    // height of the window
 		NULL,    // we have no parent window, NULL
 		NULL,    // we aren't using menus, NULL
 		hInstance,    // application handle
@@ -640,6 +638,12 @@ int WINAPI WinMain(HINSTANCE hInstance,
 {
 	
 	auto hWnd = CreateWin(hInstance);
+	RECT clientRect;
+	GetClientRect(hWnd, &clientRect);
+
+
+	clientWidth = clientRect.right - clientRect.left;
+	clientHeight = clientRect.bottom - clientRect.top;
 	ShowWindow(hWnd, nShowCmd);
     auto check = InitD3D(hWnd);
 	if (check != 0)
@@ -648,16 +652,6 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		return -1;
 	}
 
-	//file.open("./../games/pong2.c8", std::ios::binary);
-	//file.open("./../JamesGriffin CHIP-8-Emulator master roms/MAZE", std::ios::binary);
-	//file.open("./../JamesGriffin CHIP-8-Emulator master roms/PONG2", std::ios::binary);
-	//file.open("./../kripod chip8-roms master programs/SQRT Test [Sergey Naydenov, 2010].ch8", std::ios::binary);
-	//file.open("./../games/Pong (1 player).ch8", std::ios::binary);
-	//file.open("./../games/Space Invaders [David Winter] (alt).ch8", std::ios::binary);
-	//file.open("./../games/Space Invaders [David Winter] (alt).ch8", std::ios::binary);
-	//file.open("./../test_opcode.ch8", std::ios::in | std::ios::binary);
-	//file.open("./../c8_test.c8", std::ios::in | std::ios::binary);
-	//file.open("./../2-ibm-logo.ch8", std::ios::in | std::ios::binary);
 	keys.fill(0);
 	chip.Init();
 	setupTexture();
@@ -687,7 +681,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 
 	try
 	{
-		chip.LoadROM("./../2-ibm-logo.ch8");
+		chip.LoadROM("./../games/pong2.c8");
 	}
 	catch (const std::exception& e)
 	{
