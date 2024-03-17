@@ -17,7 +17,7 @@
 ## Additional Features
 ### Flickering
 to remove the natural flickering that is caused by xor operation on the screen,
-the old phosphor screen effect is implemented
+the [old phosphor screen effect](https://faizilham.github.io/revisiting-chip8) is implemented
 
 | No old phosphor screen | phosphor screen |
 |----|----|
