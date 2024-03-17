@@ -1,9 +1,9 @@
 # CHIP-8 Emulator
-<img src="./screenshots/IBM.png/"  width=50% height=50%>
-<img src="./screenshots/UFO.gif"  width=50% height=50%>
-<img src="./screenshots/test_opcode.png"  width=50% height=50%>
-<img src="./screenshots/PONG.gif"  width=50% height=50%>
-<img src="./screenshots/INVADERS.png"  width=50% height=50%>
+| |  |
+|----|----|
+| ![](./screenshots/IBM.png) | ![](./screenshots/UFO.gif) |
+| ![](./screenshots/test_opcode.png) | ![](./screenshots/PONG.gif) |
+| ![](./screenshots/INVADERS.png) |![](./screenshots/TICTAC.png)
 
 ## Use
  * Provide a path to the rom without any whitespaces and cycle delay (it determines the speed of the game and may vary from game to game)
