@@ -1,15 +1,13 @@
 
 #include"Chip8.h"
-
 #include<vector>
 #include<array>
 #include <chrono>
 #include <cassert>
 #include <iostream>
-#define GLUT_STATIC_LIB
 #include <windows.h> 
-#include <memory> 
-
+#include <cctype>
+#include <string_view>
 
 #include <d3d11.h>
 #include <d3dcompiler.h>
@@ -236,7 +234,7 @@ int InitD3D(HWND hWnd)
 
 	// Load the compiled vertex shader.
 	ID3DBlob* vertexShaderBlob;
-	LPCWSTR compiledVertexShaderObject = L"./../x64/Debug/vertex.cso";
+	LPCWSTR compiledVertexShaderObject = L"./vertex.cso";
 
 	auto hr = D3DReadFileToBlob(compiledVertexShaderObject, &vertexShaderBlob);
 	if (FAILED(hr))
@@ -251,7 +249,7 @@ int InitD3D(HWND hWnd)
 	}
 
 	ID3DBlob* pixleShaderBlob;
-	compiledVertexShaderObject = L"./../x64/Debug/pixel.cso";
+	compiledVertexShaderObject = L"./pixel.cso";
 
 	 hr = D3DReadFileToBlob(compiledVertexShaderObject, &pixleShaderBlob);
 	if (FAILED(hr))
@@ -377,37 +375,8 @@ void setupTexture()
 	for (int y = 0; y < SCREEN_H; ++y)
 		for (int x = 0; x < SCREEN_W; ++x)
 			screenData[y][x][0] = screenData[y][x][1] = screenData[y][x][2] = 0;
-#if 0
-
-	// Create a texture 
-	glTexImage2D(GL_TEXTURE_2D, 0, 3, SCREEN_W, SCREEN_H, 0, GL_RGB, GL_UNSIGNED_BYTE, (GLvoid*)screenData);
-
-	// Set up the texture
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-
-	// Enable textures
-	glEnable(GL_TEXTURE_2D);
-#endif
 }
 
-
-//void reshape_window(GLsizei w, GLsizei h)
-//{
-//	glClearColor(0.0f, 0.0f, 0.5f, 0.0f);
-//	glMatrixMode(GL_PROJECTION);
-//	glLoadIdentity();
-//	gluOrtho2D(0, w, h, 0);
-//	glMatrixMode(GL_MODELVIEW);
-//	glViewport(0, 0, w, h);
-//	// Resize quad
-//	display_width = w;
-//	display_height = h;
-//
-//
-//}
 
 
 void updateTexture()
@@ -416,6 +385,9 @@ void updateTexture()
 	// Update pixels
 	auto& screen = chip.GetScreen();
 	auto& updated = chip.GetUpdated();
+// old phosphore screen
+#if 1
+
 	for (int y = 0; y < 32; ++y)
 		for (int x = 0; x < 64; ++x)
 		{
@@ -423,10 +395,6 @@ void updateTexture()
 			// if updated and draws 1 then max
 			if (!updated[index] || screen[index] != 1)
 			{
-				//if (!m_Updated[index])
-				//{
-				//	screenData[y][x][0] = screenData[y][x][1] = screenData[y][x][2] = colors[0];	
-				//}
 				continue;
 			}
 			
@@ -462,18 +430,15 @@ void updateTexture()
 			screenData[y][x][0] = screenData[y][x][1] = screenData[y][x][2] = colors[color];
 		}
 	}
-#if 0
-
-	// Update Texture
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, SCREEN_W, SCREEN_H, GL_RGB, GL_UNSIGNED_BYTE, (GLvoid*)screenData);
-
-	glBegin(GL_QUADS);
-	glTexCoord2d(0.0, 0.0);		glVertex2d(0.0, 0.0);
-	glTexCoord2d(1.0, 0.0); 	glVertex2d(display_width, 0.0);
-	glTexCoord2d(1.0, 1.0); 	glVertex2d(display_width, display_height);
-	glTexCoord2d(0.0, 1.0); 	glVertex2d(0.0, display_height);
-	glEnd();
 #else
+	for (int y = 0; y < 32; ++y)
+		for (int x = 0; x < 64; ++x)
+			if (screen[(y * 64) + x] == 0)
+				screenData[y][x][0] = screenData[y][x][1] = screenData[y][x][2] = 0;	// Disabled
+			else
+				screenData[y][x][0] = screenData[y][x][1] = screenData[y][x][2] = 255;  // Enabled
+
+#endif
 	auto hr = devcon->Map(tex, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
 
 	if (SUCCEEDED(hr)) {
@@ -502,15 +467,14 @@ void updateTexture()
 		// Unmap the texture resource
 		devcon->Unmap(tex, 0);
 	}
-#endif // 0
 
 }
 
 
 auto lastCycleTime = std::chrono::high_resolution_clock::now();
 // amount of time one frame executes
-float cycleDelay = 1.5;
-void display()
+
+void display(float cycleDelay)
 {
 	auto currentTime = std::chrono::high_resolution_clock::now();
 	float dt = std::chrono::duration<float, std::chrono::milliseconds::period>(currentTime - lastCycleTime).count();
@@ -521,70 +485,12 @@ void display()
 	if (chip.IsUpdateScreen())
 	{
 		updateTexture();
-#if 0
-
-		glClear(GL_COLOR_BUFFER_BIT);
-	
-	
-		glutSwapBuffers();
-#else
 		Render();
-	
-#endif // 0
-
 		// Clear framebuffer
 		chip.SetUpdateScreen(false);
 	}
 }
 
-
-void keyboardDown(unsigned char key, int x, int y)
-{
-	if (key == 27)    // esc
-		exit(0);
-
-	if (key == '1')			keys[0x1] = 1;
-	else if (key == '2')	keys[0x2] = 1;
-	else if (key == '3')	keys[0x3] = 1;
-	else if (key == '4')	keys[0xC] = 1;
-
-	else if (key == 'q')	keys[0x4] = 1;
-	else if (key == 'w')	keys[0x5] = 1;
-	else if (key == 'e')	keys[0x6] = 1;
-	else if (key == 'r')	keys[0xD] = 1;
-
-	else if (key == 'a')	keys[0x7] = 1;
-	else if (key == 's')	keys[0x8] = 1;
-	else if (key == 'd')	keys[0x9] = 1;
-	else if (key == 'f')	keys[0xE] = 1;
-
-	else if (key == 'z')	keys[0xA] = 1;
-	else if (key == 'x')	keys[0x0] = 1;
-	else if (key == 'c')	keys[0xB] = 1;
-	else if (key == 'v')	keys[0xF] = 1;
-
-	//printf("Press key %c\n", key);
-}
-
-void keyboardUp(unsigned char key, int x, int y)
-{
-	if (key == '1')			keys[0x1] = 0;
-	else if (key == '2')	keys[0x2] = 0;
-	else if (key == '3')	keys[0x3] = 0;
-	else if (key == '4')	keys[0xC] = 0;
-	else if (key == 'q')	keys[0x4] = 0;
-	else if (key == 'w')	keys[0x5] = 0;
-	else if (key == 'e')	keys[0x6] = 0;
-	else if (key == 'r')	keys[0xD] = 0;
-	else if (key == 'a')	keys[0x7] = 0;
-	else if (key == 's')	keys[0x8] = 0;
-	else if (key == 'd')	keys[0x9] = 0;
-	else if (key == 'f')	keys[0xE] = 0;
-	else if (key == 'z')	keys[0xA] = 0;
-	else if (key == 'x')	keys[0x0] = 0;
-	else if (key == 'c')	keys[0xB] = 0;
-	else if (key == 'v')	keys[0xF] = 0;
-}
 
 HWND CreateWin(HINSTANCE hInstance)
 {
@@ -614,7 +520,7 @@ HWND CreateWin(HINSTANCE hInstance)
 	
 	hWnd = CreateWindowEx(NULL,
 		L"WindowClass1",    // name of the window class
-		L"Our First Windowed Program",   // title of the window
+		L"CHIP-8 Emulator",   // title of the window
 		WS_OVERLAPPEDWINDOW,    // window style
 		300,    // x-position of the window
 		300,    // y-position of the window
@@ -648,7 +554,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
     auto check = InitD3D(hWnd);
 	if (check != 0)
 	{
-		MessageBox(nullptr, TEXT("Failed to create DirectX device and swap chain."), TEXT("Error"), MB_OK);
+		MessageBox(nullptr, TEXT("Failed to Initialize D3D."), TEXT("Error"), MB_OK);
 		return -1;
 	}
 
@@ -666,31 +572,40 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	maxColorIndex = colors.size() - 1;
 	maxColorLevelIndex = colorLevels.size() - 1;
 
-	// working directory is a project directory
+	const char* ptr = lpCmdLine;
+	while (*ptr == ' ')
+	{
+		ptr++;
+	}
+	while (*ptr != ' ')
+	{
+		ptr++;
+	};
+	std::string_view rom{ lpCmdLine , (size_t)(ptr - lpCmdLine)};
+	while (*ptr == ' ')
+	{
+		ptr++;
+	}
+	float cycleDelay = strtof(ptr, nullptr);
 
-	//file.open("./../games/pong2.c8", std::ios::binary);
-	//file.open("./../JamesGriffin CHIP-8-Emulator master roms/MAZE", std::ios::binary);
-	//file.open("./../JamesGriffin CHIP-8-Emulator master roms/PONG2", std::ios::binary);
-	//file.open("./../kripod chip8-roms master programs/SQRT Test [Sergey Naydenov, 2010].ch8", std::ios::binary);
-	//file.open("./../games/Pong (1 player).ch8", std::ios::binary);
-	//file.open("./../games/Space Invaders [David Winter] (alt).ch8", std::ios::binary);
-	//file.open("./../games/Space Invaders [David Winter] (alt).ch8", std::ios::binary);
-	//file.open("./../test_opcode.ch8", std::ios::in | std::ios::binary);
-	//file.open("./../c8_test.c8", std::ios::in | std::ios::binary);
-	//file.open("./../2-ibm-logo.ch8", std::ios::in | std::ios::binary);
 
 	try
 	{
-		chip.LoadROM("./../games/pong2.c8");
+		chip.LoadROM(std::string{ rom.data(),rom.size() });
 	}
 	catch (const std::exception& e)
 	{
+		auto str = e.what();
+		MessageBoxA(0,
+			str,
+			"Loading ROM error",
+			MB_OK);
 		std::cout << e.what();
 	}
 
 	// this struct holds Windows event messages
 	MSG msg{};
-
+	
 	while (true)
 	{
 		// Check to see if any messages are waiting in the queue
@@ -708,7 +623,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		}
 		else
 		{
-			display();
+			display(cycleDelay);
 		}
 	}
 
@@ -724,77 +639,63 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPara
 	switch (message)
 	{
 		// this message is read when the window is closed
-	case WM_DESTROY:
-	{
-		// close the application entirely
-		PostQuitMessage(0);
-		return 0;
-	} break;
+		case WM_DESTROY:
+		{
+			// close the application entirely
+			PostQuitMessage(0);
+			return 0;
+		}
+		case WM_KEYUP:
+		{
+			auto key = std::tolower((char)wParam);
+			if (key == '1')			keys[0x1] = 0;
+			else if (key == '2')	keys[0x2] = 0;
+			else if (key == '3')	keys[0x3] = 0;
+			else if (key == '4')	keys[0xC] = 0;
+			else if (key == 'q')	keys[0x4] = 0;
+			else if (key == 'w')	keys[0x5] = 0;
+			else if (key == 'e')	keys[0x6] = 0;
+			else if (key == 'r')	keys[0xD] = 0;
+			else if (key == 'a')	keys[0x7] = 0;
+			else if (key == 's')	keys[0x8] = 0;
+			else if (key == 'd')	keys[0x9] = 0;
+			else if (key == 'f')	keys[0xE] = 0;
+			else if (key == 'z')	keys[0xA] = 0;
+			else if (key == 'x')	keys[0x0] = 0;
+			else if (key == 'c')	keys[0xB] = 0;
+			else if (key == 'v')	keys[0xF] = 0;
+			break;
+		}
+		case WM_CHAR:
+		{
+			auto key = (char)wParam;
+			if (key == 27)    // esc
+				exit(0);
+			if (key == '1')			keys[0x1] = 1;
+			else if (key == '2')	keys[0x2] = 1;
+			else if (key == '3')	keys[0x3] = 1;
+			else if (key == '4')	keys[0xC] = 1;
+
+			else if (key == 'q')	keys[0x4] = 1;
+			else if (key == 'w')	keys[0x5] = 1;
+			else if (key == 'e')	keys[0x6] = 1;
+			else if (key == 'r')	keys[0xD] = 1;
+
+			else if (key == 'a')	keys[0x7] = 1;
+			else if (key == 's')	keys[0x8] = 1;
+			else if (key == 'd')	keys[0x9] = 1;
+			else if (key == 'f')	keys[0xE] = 1;
+
+			else if (key == 'z')	keys[0xA] = 1;
+			else if (key == 'x')	keys[0x0] = 1;
+			else if (key == 'c')	keys[0xB] = 1;
+			else if (key == 'v')	keys[0xF] = 1;
+
+			break;
+		}
 	}
 
 	// Handle any messages the switch statement didn't
 	return DefWindowProc(hWnd, message, wParam, lParam);
 }
-#if 0
-int main(int argc, char** argv)
-{
-
-	keys.fill(0);
-	chip.Init();
-
-
-	for (int i = 0; i < colors.size(); i++)
-	{
-		for (int j = 0; j < framePersistence; j++)
-		{
-			colorLevels.push_back(i);
-		}
-	}
-	maxColorIndex = colors.size() - 1;
-	maxColorLevelIndex = colorLevels.size() - 1;
-	// Load fontset
-
-	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
-
-	glutInitWindowSize(display_width, display_height);
-	glutInitWindowPosition(320, 320);
-	glutCreateWindow("myChip8 by Laurence Muller");
-
-	glutReshapeFunc(reshape_window);
-	glutDisplayFunc(display);
-	glutIdleFunc(display);
-	glutKeyboardFunc(keyboardDown);
-	glutKeyboardUpFunc(keyboardUp);
-	setupTexture();
-
-	// working directory is a project directory
-
-	//file.open("./../games/pong2.c8", std::ios::binary);
-	//file.open("./../JamesGriffin CHIP-8-Emulator master roms/MAZE", std::ios::binary);
-	//file.open("./../JamesGriffin CHIP-8-Emulator master roms/PONG2", std::ios::binary);
-	//file.open("./../kripod chip8-roms master programs/SQRT Test [Sergey Naydenov, 2010].ch8", std::ios::binary);
-	//file.open("./../games/Pong (1 player).ch8", std::ios::binary);
-	//file.open("./../games/Space Invaders [David Winter] (alt).ch8", std::ios::binary);
-	//file.open("./../games/Space Invaders [David Winter] (alt).ch8", std::ios::binary);
-	//file.open("./../test_opcode.ch8", std::ios::in | std::ios::binary);
-	//file.open("./../c8_test.c8", std::ios::in | std::ios::binary);
-	//file.open("./../2-ibm-logo.ch8", std::ios::in | std::ios::binary);
-
-	try
-	{
-		chip.LoadROM("./../JamesGriffin CHIP-8-Emulator master roms/PONG2");
-	}
-	catch (const std::exception& e)
-	{
-		std::cout << e.what();
-	}
-
-
-
-	glutMainLoop();
-}
-
-#endif // 0
-
 
