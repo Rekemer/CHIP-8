@@ -6,7 +6,7 @@
 | ![](./screenshots/INVADERS.png) |![](./screenshots/TICTAC.png)
 
 ## Use
- * Provide a path to the rom without any whitespaces and cycle delay (it determines the speed of the game and may vary from game to game)
+ * Provide a path to the rom without any whitespaces and with cycle delay (it determines the speed of the game and may vary from game to game)
  * Note that some roms in the repo have whitespaces in it, so the filename must be edited before the rom is loaded 
  ### Example 
     ./CHIP-8.exe ./roms/INVADERS 1.7
